@@ -48,7 +48,7 @@ Range testing of values is denoted by a ':' suffix, followed by optional number 
         = hour: 6 > 12 || 13 > 16 ! @shop
         = hour: 12 > 13 ! @cafe
     ]
-    = @shop
+   = @shop
         > ?
             " What do you want to buy?
             = bow
@@ -69,10 +69,13 @@ Range testing of values is denoted by a ':' suffix, followed by optional number 
                 <
             = next
                 ? " Anything else?
-                    <...
+                    ...
+                    > " Nope.
+                    <
             " Thank you, come again!
-            <
-        > ! attacked
+            <            
+        > 
+     ! attacked
             %50
                 ! run
                 " Help!
