@@ -16,6 +16,10 @@ The only specialization of names is that like genTile, the at sign (@) is used t
 
 The top level defines the 'actors' scripting (using an '@' so it overloads the compare against location / so avoid naming locations and actors by the same name).
 
+The top level may include a schedule, i.e. conditions for location of actor are enclosed in square braces.
+
+Format is condition test, prefixed with '=', a condition, then a '!' followed by the location.
+
 The top level is most likely include conditions - which are denoted by the equals (=) character followed by the condition, followed by the action.
 
 The action can be player initiated (these are bracketed with angle brackets going the 'direction' of the interaction , so starting with '>' ending with '\<' , the meaning being 'enter a state', and 'leave a state'
