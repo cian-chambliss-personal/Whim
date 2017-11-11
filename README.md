@@ -28,8 +28,6 @@ The '"' action denotes dialog (After a '?' its the actors line, otherwise the ac
 
 The '-' and '+' prefix allow for items to be be exchanged '-' takes the item(s) from the players inventory, '+' adds the item(s) to the players inventory / state.   The '"' directly after these actions is used when the condition cannot be met (i.e. no inventory, missing pre-requiste).  When there is a squence of '+' and '-', the exchange action will only be applied if ALL the conditions can be satisfied.
 
-A loop in a player initiated action is denoted by a '...' after the closing '\<' character.
-
 Externally named actions have a '!' prefix (followed by a space / when included with the name, a '!' denotes a 'feature' element of a game).
 
 Random selection is denoted not the '%' prefix (with the odds following the '%').
@@ -37,7 +35,12 @@ Random selection is denoted not the '%' prefix (with the odds following the '%')
 Scalars are denoted by a '\*' following a number - this indicates  the numnber of items (in a test, this is assumed to be  minimum) / this is used for exchanges of item(s) for bartering in a game.
 
 Range testing of values is denoted by a ':' suffix, followed by optional number , followed by '>', followed by another optional number, of which there must be at least one number.  If a number is missing, the comparison is assumed unconstrained that direction.  If there are more than one range accepted, they will be separated with a logical or denoted by '||'.
- 
+
+Immediately after the closing '\<' brace there can be a name of a goto action.
+
+Goto actions are prefixed with a '$' character, and can define loops.
+
+The '...' character can be used inside gotos to show the ansers defined at the containing context. 
 
 # Prototype
 
@@ -48,7 +51,7 @@ Range testing of values is denoted by a ':' suffix, followed by optional number 
         = hour: 6 > 12 || 13 > 16 ! @shop
         = hour: 12 > 13 ! @cafe
     ]
-   = @shop
+    = @shop
         > ?
             " What do you want to buy?
             = bow
@@ -57,25 +60,26 @@ Range testing of values is denoted by a ':' suffix, followed by optional number 
                         " Sorry, you don't have enough gold.
                     + arrow * 10
                         " Sorry, you don't have enough room in your quiver.
-                    <
+                    < again
             > " Sword
                 - coin * 300
                     " Sorry, you don't have enough gold.
                 + sword
-                <
+                < again
             = first
                 > " Just browsing...
                     " Let me know if you need help...
-                <
-            = next
+                < done
+            $ again
                 ? " Anything else?
                     ...
                     > " Nope.
-                    <
-            " Thank you, come again!
-            <            
-        > 
-     ! attacked
+                    < done
+            $ done
+                " Thank you, come again!
+                <
+
+        > ! attacked
             %50
                 ! run
                 " Help!
@@ -95,5 +99,5 @@ Range testing of values is denoted by a ':' suffix, followed by optional number 
     = hour: 16 > 6
         > ? " You'll have to come back tomorrow.
     = else
-        > ?" Be opening shortly.
+        > ?" Be opening shortly.                
 ```
