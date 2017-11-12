@@ -1,51 +1,72 @@
 
 //====================================
-const parseNumber = function (expr) {
-    var num = 0;
-    expr = expr.trim();
-    try {
-        num = parseFloat(expr);
-    } catch (err) {
-        return { error: err };
+const parseNumeric = function (text) {
+    var num  = parseFloat(text.trim());
+    if( num === NaN ) {
+        return { error: "Not a number" };
     }
     return { result: num };
 };
 //====================================
 const parseRange = function (expr) {
-    var result = {}, num, op = "<";
-    expr = expr.split("<");
-    if (expr.length === 1) {
+    var result = null, num, op = "<" , nEndpoint = 0;
+    if( expr.indexOf("<") >= 0 ) {
+        expr = expr.split("<");
+    } else {
         op = ">";
-        expr = expr[0].split(">");
+        expr = expr.split(">");
     }
     if (expr.length !== 2) {
         return { error: "Expected a '<' comparison operator " };
     }
-    if (op === ">") {
-        op = expr[0];
-        expr[0] = expr[1];
-        expr[1] = op;
-    }
-    if (expr[0].length > 0) {
-        num = parseNumber(expr[0]);
+    if ( expr[0].length > 0) {
+        num = parseNumeric(expr[0]);
         if (num.error) {
             return num;
+        } 
+        if( op === ">" ) {
+            result = { end : num.result };
+        } else {
+            result = { start : num.result };
         }
-        result.start = num.result;
+        ++nEndpoint;
     }
     if (expr[1].length > 0) {
-        num = parseNumber(expr[1]);
+        num = parseNumeric(expr[1]);
         if (num.error) {
             return num;
         }
-        result.end = num.result;
-        if (result.start !== undefined) {
+        if( nEndpoint == 0 ) {
+            result = {};
+        }
+        if( op === ">" ) {
+            result.start = num.result;
+        } else {
+            result.end = num.result;
+        }
+        nEndpoint++;
+        if ( nEndpoint === 2 ) {
             if (result.start >= result.end) {
                 return { error: "Start must be less than end." };
             }
         }
     }
     return { result: result };
+};
+//====================================
+const parseScalar = function(expr) {
+     expr = expr.split("*");
+     if( expr.length === 1 ) {
+        return { name : expr[0] };
+     }
+     if( expr.length === 2 ) {
+        expr[1] = parseNumeric(expr[1]);
+        if( expr[1].error ) {
+            return expr[1];
+        }
+        return { name : expr[0] , scalar : expr[1].result };
+     }
+     return { error : "Too many scalars."}
 };
 //====================================
 const parseCondition = function (expr) {
@@ -58,7 +79,7 @@ const parseCondition = function (expr) {
     place = expr.indexOf(':');
     if (place > 0) {
         name = expr.substr(0, place).trim();
-        expr = expr.split('||');
+        expr = expr.substr(place+1).split('||');
         for (i = 0; i < expr.length; ++i) {
             range = parseRange(expr[i]);
             if (range.error) {
@@ -128,14 +149,18 @@ const parse = function (definiton) {
                 }
             } else if (ch === '-') {
                 if (condition) {
-                    lastAction = { "type": "give", "content": line.substr(1).trim() };
+                    line = line.substr(1).trim();
+                    line = parseScalar(line);
+                    lastAction = { "type": "give", "item": line };
                     condition.action.push(lastAction);
                 } else {
                     return { error: "Error at line " + (i + 1) + ": give command needs a context" };
                 }
             } else if (ch === '+') {
                 if (condition) {
-                    lastAction = { "type": "take", "content": line.substr(1).trim() };
+                    line = line.substr(1).trim();
+                    line = parseScalar(line);
+                    lastAction = { "type": "take", "item": line };
                     condition.action.push(lastAction);
                 } else {
                     return { error: "Error at line " + (i + 1) + ": take command needs a context" };
@@ -173,6 +198,11 @@ const parse = function (definiton) {
             } else if (ch === '%') {
                 if (condition) {
                     line = line.substr(1).trim();
+                    line = parseNumeric(line);
+                    if( line.error ) {
+                        return { error: "Error at line " + (i + 1) + line.error };
+                    }
+                    line = line.result;
                     if( chanceDepth !== depth ) {
                         chanceStack = null;
                     }
@@ -207,6 +237,12 @@ const parse = function (definiton) {
                 ++depth;
                 if (line === '?') {
                     playerAction.type = "dialog";
+                } else if( line !== "" ) {
+                    if( line.charAt(0) === '"') {
+                        line = line.substr(1).trim();
+                        playerAction.type = "choice";
+                        playerAction.text = line;
+                    }
                 }
                 lastAction = playerAction;
             } else if (ch === '<') {
