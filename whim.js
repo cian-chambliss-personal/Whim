@@ -66,15 +66,17 @@ const parseCondition = function (expr) {
             }
             ranges.push(range);
         }
-        return { result: { name: name, ranges: ranges, location: location } };
+        return { result: {  type : "condition" , name: name, ranges: ranges, location: location } };
     }
-    return { result: { name: expr } };
+    return { result: { type : "condition" , name: expr } };
 };
 //====================================
 const parse = function (definiton) {
     var i, line, ch;
     var result = { rules: {} }, rule = null, depth = 0
-        , schedule = null, condition = null, playerAction = null, playerStack = [], conditionStack = [], lastAction;
+        , schedule = null, condition = null, playerAction = null
+        , playerStack = [], conditionStack = [], lastAction = null
+        , gotoStack = null, chanceStack = null , chanceDepth = 0;
     definiton = definiton.split("\r").join().split("\n");
     for (i = 0; i < definiton.length; ++i) {
         line = definiton[i].trim();
@@ -88,24 +90,34 @@ const parse = function (definiton) {
                 ++depth;
                 schedule = [];
             } else if (ch === ']' && schedule) {
+                --depth;
                 rule.schedule = schedule;
                 schedule = null;
             } else if (ch === '=') {
-                condition = parseCondition(line.substr(1).trim());
-                if (condition.error) {
-                    return { error: "Error at line " + (i + 1) + ":" + condition.error };
+                lastAction = parseCondition(line.substr(1).trim());
+                if (lastAction.error) {
+                    return { error: "Error at line " + (i + 1) + ":" + lastAction.error };
                 }
-                condition = condition.result;
-                condition.action = [];
-                if (rule.condition) {
-                    rule.condition.push(condition);
+                lastAction = lastAction.result;
+                lastAction.action = [];
+                if( depth > 0 && !schedule ) {
+                    if( conditionStack.length ) {
+                       if( conditionStack[ conditionStack.length - 1 ].nested ) {
+                           condition = conditionStack.pop();
+                       }
+                    }
+                    condition.action.push(lastAction); 
+                    conditionStack.push(condition);
+                    condition.nested = true;
+                } else if (rule.condition) {
+                    rule.condition.push(lastAction);
                 } else {
-                    rule.condition = [condition];
+                    rule.condition = [lastAction];
                 }
-                lastAction = condition;
+                condition = lastAction;
             } else if (ch === '"') {
                 if (condition) {
-                    if (lastAction.type === "give" && lastAction.type === "take") {
+                    if (lastAction.type === "give" || lastAction.type === "take") {
                         lastAction.error = line.substr(1).trim();
                     } else {
                         lastAction = { "type": "say", "text": line.substr(1).trim() };
@@ -130,8 +142,12 @@ const parse = function (definiton) {
                 }
             } else if (ch === '$') {
                 if (condition) {
-                    lastAction = { "type": "label", "name": line.substr(1).trim() };
-                    condition.action.push(lastAction);
+                    if (!gotoStack) {
+                        gotoStack = {};
+                        condition.goto = gotoStack;
+                    }
+                    condition = { action: [] };
+                    gotoStack[line.substr(1).trim()] = condition;
                 } else {
                     return { error: "Error at line " + (i + 1) + ": goto command needs a context" };
                 }
@@ -155,22 +171,41 @@ const parse = function (definiton) {
                     return { error: "Error at line " + (i + 1) + " Expected text." };
                 }
             } else if (ch === '%') {
-                line = line.substr(1).trim();
-                console.log("Handle percentage.");
+                if (condition) {
+                    line = line.substr(1).trim();
+                    if( chanceDepth !== depth ) {
+                        chanceStack = null;
+                    }
+                    if( !chanceStack ) {
+                        chanceDepth = depth;
+                        chanceStack = [];
+                        lastAction = { "type": "chance", "chance": chanceStack }
+                        condition.action.push(lastAction);
+                    }
+                    lastAction = { "odds" : line , action : [] };
+                    chanceStack.push(lastAction);
+                    condition = lastAction;
+                } else {
+                    return { error: "Error at line " + (i + 1) + ": chance command needs a context" };
+                }
             } else if (ch === '!') {
-                line = line.substr(1).trim();
-                console.log("Handle action.");
+                if (condition) {
+                    lastAction = { "type": "action", "name": line.substr(1).trim() };
+                    condition.action.push(lastAction);
+                } else {
+                    return { error: "Error at line " + (i + 1) + ": action command needs a context" };
+                }
             } else if (ch === '>') {
                 line = line.substr(1).trim();
                 if (playerAction) {
                     playerStack.push(playerAction);
                 }
                 conditionStack.push(condition);
-                playerAction = { action: [] };
-                condition.action.push( playerAction );
+                playerAction = { type: "", action: [] };
+                condition.action.push(playerAction);
                 condition = playerAction;
+                ++depth;
                 if (line === '?') {
-                    ++depth;
                     playerAction.type = "dialog";
                 }
                 lastAction = playerAction;
